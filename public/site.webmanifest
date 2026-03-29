@@ -1,0 +1,17 @@
+{
+  "name": "号码记账统计",
+  "short_name": "号码记账",
+  "description": "1-49号码金额录入、每日统计和图表展示。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e2e8f0",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
