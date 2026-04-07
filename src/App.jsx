@@ -3,6 +3,20 @@ import { useEffect, useMemo, useState } from 'react'
 const STORAGE_KEY = 'number-tracker-records-v1'
 const NUMBER_OPTIONS = Array.from({ length: 49 }, (_, index) => index + 1)
 const today = new Date().toISOString().slice(0, 10)
+const ZODIAC_GROUPS = [
+  { name: '鼠', numbers: [7, 19, 31, 43] },
+  { name: '牛', numbers: [6, 18, 30, 42] },
+  { name: '虎', numbers: [5, 17, 29, 41] },
+  { name: '兔', numbers: [4, 16, 28, 40] },
+  { name: '龙', numbers: [3, 15, 27, 39] },
+  { name: '蛇', numbers: [2, 14, 26, 38] },
+  { name: '马', numbers: [1, 13, 25, 37, 49] },
+  { name: '羊', numbers: [12, 24, 35, 47] },
+  { name: '猴', numbers: [11, 23, 35, 47] },
+  { name: '鸡', numbers: [10, 22, 34, 46] },
+  { name: '狗', numbers: [9, 21, 33, 45] },
+  { name: '猪', numbers: [8, 20, 32, 44] },
+]
 
 const demoRecords = [
   { id: crypto.randomUUID(), number: 1, amount: 300, date: today, note: '上午' },
@@ -120,6 +134,12 @@ function App() {
     date: today,
     note: '',
   })
+  const [selectedNumber, setSelectedNumber] = useState(null)
+  const [adjustmentAmount, setAdjustmentAmount] = useState('')
+  const [adjustmentMessage, setAdjustmentMessage] = useState('')
+  const [selectedZodiac, setSelectedZodiac] = useState(null)
+  const [zodiacAmount, setZodiacAmount] = useState('')
+  const [zodiacMessage, setZodiacMessage] = useState('')
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
@@ -139,6 +159,12 @@ function App() {
     dailyGroups.find((group) => group.date === form.date)?.total ??
     dailyGroups.find((group) => group.date === today)?.total ??
     0
+  const selectedNumberTotal = selectedNumber
+    ? numberTotals.find((item) => item.number === selectedNumber)?.amount ?? 0
+    : 0
+  const selectedZodiacGroup = selectedZodiac
+    ? ZODIAC_GROUPS.find((group) => group.name === selectedZodiac) ?? null
+    : null
 
   function handleSubmit(event) {
     event.preventDefault()
@@ -160,9 +186,105 @@ function App() {
     setRecords((current) => [nextRecord, ...current])
     setForm((current) => ({
       ...current,
-      amount: '',
       note: '',
     }))
+  }
+
+  function applyNumberAdjustment(direction) {
+    const amount = Number(adjustmentAmount)
+
+    if (!selectedNumber) {
+      return
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setAdjustmentMessage('请输入大于 0 的金额。')
+      return
+    }
+
+    if (direction === 'subtract' && amount > selectedNumberTotal) {
+      setAdjustmentMessage('删除金额不能大于当前号码累计金额。')
+      return
+    }
+
+    const signedAmount = direction === 'add' ? amount : -amount
+    const note = direction === 'add' ? '总览增加' : '总览删除'
+
+    setRecords((current) => [
+      {
+        id: crypto.randomUUID(),
+        number: selectedNumber,
+        amount: signedAmount,
+        date: form.date,
+        note,
+      },
+      ...current,
+    ])
+
+    setAdjustmentAmount('')
+    setAdjustmentMessage(
+      direction === 'add'
+        ? `已给 ${selectedNumber} 号增加 ${formatCurrency(amount)}`
+        : `已给 ${selectedNumber} 号删除 ${formatCurrency(amount)}`,
+    )
+  }
+
+  function applyZodiacAdjustment(direction) {
+    const amount = Number(zodiacAmount)
+
+    if (!selectedZodiacGroup) {
+      return
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setZodiacMessage('请输入大于 0 的金额。')
+      return
+    }
+
+    if (amount % selectedZodiacGroup.numbers.length !== 0) {
+      setZodiacMessage(
+        `当前生肖有 ${selectedZodiacGroup.numbers.length} 个号码，金额必须能整除，才能平均分配。`,
+      )
+      return
+    }
+
+    const perNumberAmount = amount / selectedZodiacGroup.numbers.length
+
+    if (
+      direction === 'subtract' &&
+      selectedZodiacGroup.numbers.some((number) => {
+        const total = numberTotals.find((item) => item.number === number)?.amount ?? 0
+        return total < perNumberAmount
+      })
+    ) {
+      setZodiacMessage('有号码当前金额不足，不能按这个金额删除。')
+      return
+    }
+
+    const note = direction === 'add' ? `${selectedZodiac}生效增加` : `${selectedZodiac}生效删除`
+    const signedAmount = direction === 'add' ? perNumberAmount : -perNumberAmount
+
+    setRecords((current) => [
+      ...selectedZodiacGroup.numbers.map((number) => ({
+        id: crypto.randomUUID(),
+        number,
+        amount: signedAmount,
+        date: form.date,
+        note,
+      })),
+      ...current,
+    ])
+
+    setZodiacAmount('')
+    setZodiacMessage(
+      direction === 'add'
+        ? `已给 ${selectedZodiac} 平均增加 ${formatCurrency(amount)}，每个号码 ${formatCurrency(
+            perNumberAmount,
+          )}`
+        : `已给 ${selectedZodiac} 平均删除 ${formatCurrency(amount)}，每个号码 ${formatCurrency(
+            perNumberAmount,
+          )}`,
+    )
   }
 
   function removeRecord(id) {
@@ -183,14 +305,6 @@ function App() {
     .map((item) => ({
       label: `${item.number} 号`,
       value: item.amount,
-    }))
-
-  const dailyChartItems = [...dailyGroups]
-    .slice(0, 7)
-    .reverse()
-    .map((item) => ({
-      label: formatDateLabel(item.date),
-      value: item.total,
     }))
 
   return (
@@ -413,16 +527,98 @@ function App() {
               </article>
 
               <article className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_10px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-                <h2 className="text-lg font-bold text-slate-950">每天金额趋势</h2>
-                <p className="mt-1 text-sm text-slate-500">最近 7 天每日总额变化</p>
-                <div className="mt-5">
-                  <Chart
-                    color="bg-gradient-to-r from-sky-500 to-cyan-400"
-                    emptyText="先添加几笔不同日期的数据，就能看到走势。"
-                    items={dailyChartItems}
-                    valueFormatter={formatCurrency}
-                  />
+                <h2 className="text-lg font-bold text-slate-950">12 生效码表</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  选中生肖后，金额会平均分到对应号码；除不尽时不允许操作
+                </p>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  {ZODIAC_GROUPS.map((group) => (
+                    <button
+                      key={group.name}
+                      className={`rounded-3xl border px-4 py-4 text-left transition ${
+                        selectedZodiac === group.name
+                          ? 'border-slate-950 bg-slate-950 text-white'
+                          : 'border-slate-200 bg-slate-50'
+                      }`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedZodiac(group.name)
+                        setZodiacMessage('')
+                      }}
+                    >
+                      <p
+                        className={`text-sm font-bold ${
+                          selectedZodiac === group.name ? 'text-white' : 'text-slate-950'
+                        }`}
+                      >
+                        {group.name}
+                      </p>
+                      <p
+                        className={`mt-2 text-xs leading-5 ${
+                          selectedZodiac === group.name ? 'text-white/75' : 'text-slate-500'
+                        }`}
+                      >
+                        {group.numbers.join(' ')}
+                      </p>
+                    </button>
+                  ))}
                 </div>
+
+                {selectedZodiacGroup ? (
+                  <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      当前生效：{selectedZodiacGroup.name}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      对应号码：{selectedZodiacGroup.numbers.join('、')}
+                    </p>
+
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <label className="block flex-1">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          生效金额
+                        </span>
+                        <input
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition focus:border-amber-400"
+                          inputMode="numeric"
+                          min="0"
+                          placeholder="例如 200"
+                          type="number"
+                          value={zodiacAmount}
+                          onChange={(event) => setZodiacAmount(event.target.value)}
+                        />
+                      </label>
+
+                      <button
+                        className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                        type="button"
+                        onClick={() => applyZodiacAdjustment('add')}
+                      >
+                        增加金额
+                      </button>
+
+                      <button
+                        className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-500"
+                        type="button"
+                        onClick={() => applyZodiacAdjustment('subtract')}
+                      >
+                        删除金额
+                      </button>
+                    </div>
+
+                    <p className="mt-3 text-sm text-slate-500">
+                      当前按 {selectedZodiacGroup.numbers.length} 个号码平均分配，记录日期使用{' '}
+                      {form.date}。
+                    </p>
+
+                    {zodiacMessage ? (
+                      <p className="mt-2 text-sm font-medium text-slate-700">
+                        {zodiacMessage}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
             </section>
 
@@ -436,21 +632,105 @@ function App() {
 
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7">
                 {numberTotals.map((item) => (
-                  <article
+                  <button
                     key={item.number}
-                    className={`rounded-3xl border px-4 py-4 transition ${
+                    className={`rounded-3xl border px-4 py-4 text-left transition ${
                       item.amount > 0
                         ? 'border-amber-200 bg-amber-50'
                         : 'border-slate-200 bg-slate-50'
+                    } ${
+                      selectedNumber === item.number
+                        ? 'border-slate-950 bg-slate-950 text-white'
+                        : ''
                     }`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedNumber(item.number)
+                      setAdjustmentMessage('')
+                    }}
                   >
-                    <p className="text-xs text-slate-500">{item.number} 号</p>
-                    <p className="mt-2 text-lg font-bold text-slate-950">
+                    <p
+                      className={`text-xs ${
+                        selectedNumber === item.number ? 'text-white/70' : 'text-slate-500'
+                      }`}
+                    >
+                      {item.number} 号
+                    </p>
+                    <p
+                      className={`mt-2 text-lg font-bold ${
+                        selectedNumber === item.number ? 'text-white' : 'text-slate-950'
+                      }`}
+                    >
                       {formatCurrency(item.amount)}
                     </p>
-                  </article>
+                    <p
+                      className={`mt-2 text-xs ${
+                        selectedNumber === item.number ? 'text-white/75' : 'text-slate-500'
+                      }`}
+                    >
+                      点我修改
+                    </p>
+                  </button>
                 ))}
               </div>
+
+              {selectedNumber ? (
+                <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        正在修改 {selectedNumber} 号
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        当前累计 {formatCurrency(selectedNumberTotal)}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-medium text-slate-700">
+                          修改金额
+                        </span>
+                        <input
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition focus:border-amber-400"
+                          inputMode="numeric"
+                          min="0"
+                          placeholder="例如 200"
+                          type="number"
+                          value={adjustmentAmount}
+                          onChange={(event) => setAdjustmentAmount(event.target.value)}
+                        />
+                      </label>
+
+                      <button
+                        className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                        type="button"
+                        onClick={() => applyNumberAdjustment('add')}
+                      >
+                        增加金额
+                      </button>
+
+                      <button
+                        className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-500"
+                        type="button"
+                        onClick={() => applyNumberAdjustment('subtract')}
+                      >
+                        删除金额
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-sm text-slate-500">
+                    这次修改会按当前日期 {form.date} 记入一条新记录，方便后面统计。
+                  </p>
+
+                  {adjustmentMessage ? (
+                    <p className="mt-2 text-sm font-medium text-slate-700">
+                      {adjustmentMessage}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
 
             <section className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_10px_40px_rgba(15,23,42,0.08)] backdrop-blur">
