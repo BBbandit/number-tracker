@@ -140,6 +140,7 @@ function App() {
   const [selectedZodiac, setSelectedZodiac] = useState(null)
   const [zodiacAmount, setZodiacAmount] = useState('')
   const [zodiacMessage, setZodiacMessage] = useState('')
+  const [isRankingExpanded, setIsRankingExpanded] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
@@ -299,13 +300,14 @@ function App() {
     setRecords([])
   }
 
-  const topChartItems = sortedNumberTotals
+  const rankingItems = sortedNumberTotals
     .filter((item) => item.amount > 0)
-    .slice(0, 10)
     .map((item) => ({
       label: `${item.number} 号`,
       value: item.amount,
     }))
+  const visibleRankingItems = isRankingExpanded ? rankingItems : rankingItems.slice(0, 10)
+  const hasMoreRankingItems = rankingItems.length > 10
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.2),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#e2e8f0_100%)] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
@@ -514,13 +516,30 @@ function App() {
           <div className="space-y-4">
             <section className="grid gap-4 lg:grid-cols-2">
               <article className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-5 shadow-[0_10px_40px_rgba(15,23,42,0.08)] backdrop-blur">
-                <h2 className="text-lg font-bold text-slate-950">号码金额排行</h2>
-                <p className="mt-1 text-sm text-slate-500">自动找出金额最高的号码</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-950">号码金额排行</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      默认先看前 10 个，展开后可看更完整
+                    </p>
+                  </div>
+
+                  {hasMoreRankingItems ? (
+                    <button
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      type="button"
+                      onClick={() => setIsRankingExpanded((current) => !current)}
+                    >
+                      {isRankingExpanded ? '收起' : `展开更多（剩余 ${rankingItems.length - 10} 个）`}
+                    </button>
+                  ) : null}
+                </div>
+
                 <div className="mt-5">
                   <Chart
                     color="bg-gradient-to-r from-amber-400 to-orange-500"
                     emptyText="还没有数据，图表会在录入后自动出现。"
-                    items={topChartItems}
+                    items={visibleRankingItems}
                     valueFormatter={formatCurrency}
                   />
                 </div>
