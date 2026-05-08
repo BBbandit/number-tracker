@@ -11,7 +11,7 @@ const ZODIAC_GROUPS = [
   { name: '龙', numbers: [3, 15, 27, 39] },
   { name: '蛇', numbers: [2, 14, 26, 38] },
   { name: '马', numbers: [1, 13, 25, 37, 49] },
-  { name: '羊', numbers: [12, 24, 35, 47] },
+  { name: '羊', numbers: [12, 24, 36, 48] },
   { name: '猴', numbers: [11, 23, 35, 47] },
   { name: '鸡', numbers: [10, 22, 34, 46] },
   { name: '狗', numbers: [9, 21, 33, 45] },
@@ -446,7 +446,7 @@ function App() {
                 </button>
               </form>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-col items-start gap-2">
                 <button
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                   type="button"
